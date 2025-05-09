@@ -5,7 +5,10 @@ from typing import Dict, List, Any, Optional, Tuple
 
 import gitlab
 import google.cloud.aiplatform as vertex_ai
-from google.cloud.aiplatform.gapic.schema import predict
+from google import genai
+from google.genai.types import HttpOptions
+from google.genai.types import GenerationConfig
+from google.genai.types import GenerateContentConfig
 
 from .gitlab_util import (
     get_project,
@@ -87,17 +90,38 @@ Only return the docstring text without triple quotes.
     
     # Call Vertex AI Codey to generate the docstring
     try:
-        model = "code-bison"
-        endpoint = f"projects/{os.environ.get('GOOGLE_PROJECT')}/locations/{os.environ.get('GOOGLE_LOCATION', 'us-central1')}/publishers/google/models/{model}"
+        # Get project and location from environment variables
+        project_id = os.environ.get("GOOGLE_PROJECT")
+        location = os.environ.get("GOOGLE_LOCATION", "us-central1")
         
-        response = vertex_ai.models.TextGenerationModel.from_pretrained(model).predict(
-            prompt=prompt,
-            **parameters
+        if not project_id:
+            print("Error: GOOGLE_PROJECT environment variable not set")
+            return f"TODO: Add docstring for {entity_name}"
+        
+        # Set environment variables for Vertex AI integration
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+        os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
+        os.environ["GOOGLE_CLOUD_LOCATION"] = location
+        
+        # Create the Gen AI client with proper configuration
+        client = genai.Client(http_options=HttpOptions(api_version="v1"))
+        
+        # Generate content using the Gen AI SDK
+        response = client.models.generate_content(
+            model="gemini-2.0-pro-001",
+            contents=prompt,
+            config=GenerateContentConfig(
+                temperature=parameters["temperature"],
+                max_output_tokens=parameters["max_output_tokens"],
+                top_p=parameters["top_p"],
+                top_k=parameters["top_k"]
+            )
         )
         
         return response.text.strip()
     except Exception as e:
         # Fallback if the generation fails
+        print(f"Error generating docstring: {str(e)}")
         return f"TODO: Add docstring for {entity_name}"
 
 def insert_docstring(

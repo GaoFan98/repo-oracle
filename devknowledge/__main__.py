@@ -6,8 +6,8 @@ import argparse
 from .index import reindex_repository
 
 def main():
-    """Command-line entry point for DevKnowledge Hub."""
-    parser = argparse.ArgumentParser(description="DevKnowledge Hub CLI")
+    """Command-line entry point for Repo Oracle."""
+    parser = argparse.ArgumentParser(description="Repo Oracle CLI")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
     
     # Index command

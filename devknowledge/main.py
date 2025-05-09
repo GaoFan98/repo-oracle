@@ -8,12 +8,13 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.templating import Jinja2Templates
 
 from .doc_harvest import process_merge_request
 from .index import reindex_repository
 from .qa import generate_answer
 
-app = FastAPI(title="DevKnowledge Hub")
+app = FastAPI(title="Repo Oracle")
 
 # Add CORS middleware
 app.add_middleware(
@@ -30,6 +31,7 @@ os.makedirs(static_dir, exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+templates = Jinja2Templates(directory=static_dir)
 
 class QuestionRequest(BaseModel):
     question: str
@@ -80,9 +82,14 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
 @app.post("/reindex")
 async def reindex(background_tasks: BackgroundTasks):
-    """Endpoint to trigger a reindex of the repository."""
+    """
+    Reindex the repository to update the knowledge base.
+    This runs in the background to avoid blocking the API.
+    """
+    # Start reindexing in the background
     background_tasks.add_task(reindex_repository)
-    return {"status": "reindexing_started"}
+    
+    return {"status": "success", "message": "Reindexing started in the background. This may take a few minutes."}
 
 @app.post("/ask", response_model=Dict[str, Any])
 async def ask(question_request: QuestionRequest):
@@ -105,7 +112,7 @@ async def root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>DevKnowledge Hub</title>
+        <title>Repo Oracle</title>
         <style>
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -189,7 +196,7 @@ async def root():
         </style>
     </head>
     <body>
-        <h1>DevKnowledge Hub</h1>
+        <h1>Repo Oracle</h1>
         <div class="container">
             <h2>Ask about your codebase</h2>
             <p>Type a question about your codebase to get AI-powered answers with source code references.</p>
