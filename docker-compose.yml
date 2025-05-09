@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  hub:
+    build: .
+    ports: 
+      - "8000:8000"
+    volumes:
+      - "./data:/app/data"   # persists FAISS index
+    environment:
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+      - GITLAB_HOST=${GITLAB_HOST:-https://gitlab.com}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - PROJECT_ID=${PROJECT_ID}          # GitLab numeric project id
+      - REPO_CLONE_URL=${REPO_CLONE_URL}  # https clone URL with token placeholder
+      - GOOGLE_PROJECT=${GOOGLE_PROJECT}
+      - GOOGLE_LOCATION=${GOOGLE_LOCATION:-us-central1}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/sa.json
+    secrets:
+      - source: sa_key
+        target: /app/sa.json
+
+secrets:
+  sa_key:
+    file: ./sa.json   # your Vertex service-account json 
