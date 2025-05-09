@@ -1,6 +1,6 @@
-# DevKnowledge Hub
+# Repo Oracle
 
-DevKnowledge Hub is an AI-powered documentation assistant and codebase Q&A system for GitLab repositories. It automatically generates docstrings for Python code and provides a semantic search interface to ask questions about the codebase.
+Repo Oracle Hub is an AI-powered documentation assistant and codebase Q&A system for GitLab repositories. It automatically generates docstrings for Python code and provides a semantic search interface to ask questions about the codebase.
 
 ## Features
 
