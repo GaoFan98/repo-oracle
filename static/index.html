@@ -57,6 +57,10 @@
         button:hover {
             background-color: #2980b9;
         }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
         .question {
             background-color: #e1f0fa;
             padding: 10px 15px;
@@ -84,6 +88,27 @@
         code {
             font-family: monospace;
         }
+        .system-message {
+            background-color: #fef9e7;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #f39c12;
+        }
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        #reindex-button {
+            background-color: #27ae60;
+        }
+        #reindex-button:hover {
+            background-color: #219955;
+        }
+        #reindex-button:disabled {
+            background-color: #95a5a6;
+        }
     </style>
 </head>
 <body>
@@ -91,6 +116,10 @@
     <div class="container">
         <h2>Ask about your codebase</h2>
         <p>Type a question about your codebase to get AI-powered answers with source code references.</p>
+        
+        <div class="controls-container">
+            <button id="reindex-button" title="Reindex the codebase to update the knowledge base">Reindex Repository</button>
+        </div>
         
         <div class="chat-container">
             <div id="chat-box" class="chat-box"></div>
@@ -107,13 +136,102 @@
             const chatBox = document.getElementById('chat-box');
             const questionInput = document.getElementById('question-input');
             const askButton = document.getElementById('ask-button');
+            const reindexButton = document.getElementById('reindex-button');
+            
+            // Global flag to track reindexing status
+            let isReindexing = false;
             
             askButton.addEventListener('click', askQuestion);
+            reindexButton.addEventListener('click', reindexRepository);
+            
             questionInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     askQuestion();
                 }
             });
+            
+            function reindexRepository() {
+                // Prevent multiple reindex requests
+                if (isReindexing) {
+                    const warningDiv = document.createElement('div');
+                    warningDiv.className = 'system-message';
+                    warningDiv.textContent = 'Reindexing is already in progress. Please wait for it to complete.';
+                    chatBox.appendChild(warningDiv);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                    return;
+                }
+                
+                // Set the reindexing flag
+                isReindexing = true;
+                
+                // Disable the reindex button
+                reindexButton.disabled = true;
+                reindexButton.textContent = 'Reindexing...';
+                
+                // Add a system message to the chat
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'system-message';
+                messageDiv.textContent = 'Reindexing repository... This may take a few minutes.';
+                chatBox.appendChild(messageDiv);
+                
+                // Scroll to bottom
+                chatBox.scrollTop = chatBox.scrollHeight;
+                
+                // Send request to reindex
+                fetch('/reindex', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Start polling for reindex status
+                    checkReindexStatus(messageDiv);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    messageDiv.textContent = 'Error reindexing repository. Please try again.';
+                    isReindexing = false;
+                    reindexButton.disabled = false;
+                    reindexButton.textContent = 'Reindex Repository';
+                });
+            }
+            
+            // Function to periodically check if reindexing is complete
+            function checkReindexStatus(messageDiv) {
+                // Poll the status endpoint every 5 seconds
+                const statusInterval = setInterval(() => {
+                    fetch('/reindex/status')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.in_progress) {
+                                // Reindexing is complete
+                                clearInterval(statusInterval);
+                                
+                                const completionTime = data.last_completed ? 
+                                    new Date(data.last_completed * 1000).toLocaleTimeString() : 
+                                    'just now';
+                                
+                                messageDiv.textContent = `Repository reindexed successfully at ${completionTime}!`;
+                                isReindexing = false;
+                                reindexButton.disabled = false;
+                                reindexButton.textContent = 'Reindex Repository';
+                            } else {
+                                // Still in progress, update the message
+                                const elapsedSeconds = data.last_started ? 
+                                    Math.floor((Date.now() / 1000) - data.last_started) : 
+                                    0;
+                                
+                                messageDiv.textContent = `Reindexing in progress... (${elapsedSeconds}s elapsed, estimated: ${data.estimated_duration})`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error checking status:', error);
+                            // Don't clear the interval, keep trying
+                        });
+                }, 5000);
+            }
             
             function askQuestion() {
                 const question = questionInput.value.trim();

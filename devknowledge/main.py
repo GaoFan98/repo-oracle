@@ -2,6 +2,7 @@ import os
 import json
 import hmac
 import hashlib
+import time
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -15,6 +16,13 @@ from .index import reindex_repository
 from .qa import generate_answer
 
 app = FastAPI(title="Repo Oracle")
+
+# Global variable to track reindexing status
+reindex_status = {
+    "in_progress": False,
+    "last_started": None,
+    "last_completed": None
+}
 
 # Add CORS middleware
 app.add_middleware(
@@ -80,16 +88,53 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     
     return {"status": "ignored"}
 
+def run_reindex_with_status():
+    """Run reindexing and update status."""
+    global reindex_status
+    
+    reindex_status["in_progress"] = True
+    reindex_status["last_started"] = time.time()
+    
+    try:
+        reindex_repository()
+    finally:
+        reindex_status["in_progress"] = False
+        reindex_status["last_completed"] = time.time()
+
 @app.post("/reindex")
 async def reindex(background_tasks: BackgroundTasks):
     """
     Reindex the repository to update the knowledge base.
     This runs in the background to avoid blocking the API.
     """
-    # Start reindexing in the background
-    background_tasks.add_task(reindex_repository)
+    global reindex_status
     
-    return {"status": "success", "message": "Reindexing started in the background. This may take a few minutes."}
+    # Check if reindexing is already in progress
+    if reindex_status["in_progress"]:
+        return {
+            "status": "already_running",
+            "message": "Reindexing is already in progress. Please wait for it to complete."
+        }
+    
+    # Start reindexing in the background
+    background_tasks.add_task(run_reindex_with_status)
+    
+    return {
+        "status": "started",
+        "message": "Reindexing started in the background. This may take a few minutes."
+    }
+
+@app.get("/reindex/status")
+async def get_reindex_status():
+    """Get the current status of reindexing."""
+    global reindex_status
+    
+    return {
+        "in_progress": reindex_status["in_progress"],
+        "last_started": reindex_status["last_started"],
+        "last_completed": reindex_status["last_completed"],
+        "estimated_duration": "2-3 minutes"
+    }
 
 @app.post("/ask", response_model=Dict[str, Any])
 async def ask(question_request: QuestionRequest):
